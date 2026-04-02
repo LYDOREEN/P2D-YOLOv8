@@ -115,6 +115,10 @@ class Attention(nn.Module):
 
 
 class ODConv2d(nn.Module):
+    """
+    ODConv：Omni-Dimensional Dynamic Convolution
+    多维动态卷积
+    """
     def __init__(self, in_planes, out_planes, kernel_size, stride=1, padding=1, dilation=1, groups=1,reduction=0.0625, kernel_num=4):
         super(ODConv2d, self).__init__()
         in_planes = in_planes
@@ -126,7 +130,11 @@ class ODConv2d(nn.Module):
         self.dilation = dilation
         self.groups = groups
         self.kernel_num = kernel_num
+
+        # 注意力模块
         self.attention = Attention(in_planes, out_planes, kernel_size, groups=groups,reduction=reduction, kernel_num=kernel_num)
+
+        # 多个卷积核参数
         self.weight = nn.Parameter(torch.randn(kernel_num, out_planes, in_planes // groups, kernel_size, kernel_size),requires_grad=True)
         self._initialize_weights()
 
@@ -172,6 +180,7 @@ class ODConv2d(nn.Module):
 
 class Bottleneck_ODConv(nn.Module):
     """Standard bottleneck."""
+    """Bottleneck（第二个卷积换成 ODConv）"""
 
     def __init__(self, c1, c2, shortcut=True, g=1, k=(3, 3), e=0.5):
         """Initializes a bottleneck module with given input/output channels, shortcut option, group, kernels, and expansion."""
@@ -188,6 +197,7 @@ class Bottleneck_ODConv(nn.Module):
 
 class C2f_ODConv(nn.Module):
     """Faster Implementation of CSP Bottleneck with 2 convolutions."""
+    """C2f结构 + ODConv"""
 
     def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5):
         """Initialize CSP bottleneck layer with two convolutions with arguments ch_in, ch_out, number, shortcut, groups,expansion."""
