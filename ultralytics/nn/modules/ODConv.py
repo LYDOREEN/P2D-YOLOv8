@@ -3,13 +3,13 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.autograd
 
-__all__ = ['C2f_ODConv', 'ODConv2d']
+__all__ = ['ODConv2d'，'C2f_ODConv']
 
 
 def autopad(k, p=None, d=1):  # kernel, padding, dilation
     """Pad to 'same' shape outputs."""
     if d > 1:
-        k = d * (k - 1) + 1 if isinstance(k, int) else [d * (x - 1) + 1 for x in k]  # actual kernel-size
+        k = d * (k - 1) + 1 if isinstance(k, int) else [d * (x - 1) + 1 for x in k]  
     if p is None:
         p = k // 2 if isinstance(k, int) else [x // 2 for x in k]  # auto-pad
     return p
@@ -109,14 +109,13 @@ class Attention(nn.Module):
     def forward(self, x):
         x = self.avgpool(x)
         x = self.fc(x)
-        # x = self.bn(x) # 在外面我提供了一个bn这里会报错
+        # x = self.bn(x) 
         x = self.relu(x)
         return self.func_channel(x), self.func_filter(x), self.func_spatial(x), self.func_kernel(x)
 
 
 class ODConv2d(nn.Module):
-    def __init__(self, in_planes, out_planes, kernel_size, stride=1, padding=1, dilation=1, groups=1,
-                 reduction=0.0625, kernel_num=4):
+    def __init__(self, in_planes, out_planes, kernel_size, stride=1, padding=1, dilation=1, groups=1,reduction=0.0625, kernel_num=4):
         super(ODConv2d, self).__init__()
         in_planes = in_planes
         self.in_planes = in_planes
@@ -127,10 +126,8 @@ class ODConv2d(nn.Module):
         self.dilation = dilation
         self.groups = groups
         self.kernel_num = kernel_num
-        self.attention = Attention(in_planes, out_planes, kernel_size, groups=groups,
-                                   reduction=reduction, kernel_num=kernel_num)
-        self.weight = nn.Parameter(torch.randn(kernel_num, out_planes, in_planes // groups, kernel_size, kernel_size),
-                                   requires_grad=True)
+        self.attention = Attention(in_planes, out_planes, kernel_size, groups=groups,reduction=reduction, kernel_num=kernel_num)
+        self.weight = nn.Parameter(torch.randn(kernel_num, out_planes, in_planes // groups, kernel_size, kernel_size),requires_grad=True)
         self._initialize_weights()
 
         if self.kernel_size == 1 and self.kernel_num == 1:
@@ -177,13 +174,11 @@ class Bottleneck_ODConv(nn.Module):
     """Standard bottleneck."""
 
     def __init__(self, c1, c2, shortcut=True, g=1, k=(3, 3), e=0.5):
-        """Initializes a bottleneck module with given input/output channels, shortcut option, group, kernels, and
-        expansion.
-        """
+        """Initializes a bottleneck module with given input/output channels, shortcut option, group, kernels, and expansion."""
         super().__init__()
         c_ = int(c2 * e)  # hidden channels
         self.cv1 = Conv(c1, c_, k[0], 1)
-        self.cv2 = ODConv2d(c_, c2, k[1][0], 1, groups=g)
+        self.cv2 = ODConv2d(c_, c2, k[1][0], 1, groups=g) # 将第二个卷积操作替换为ODConv
         self.add = shortcut and c1 == c2
 
     def forward(self, x):
@@ -195,16 +190,12 @@ class C2f_ODConv(nn.Module):
     """Faster Implementation of CSP Bottleneck with 2 convolutions."""
 
     def __init__(self, c1, c2, n=1, shortcut=False, g=1, e=0.5):
-        """Initialize CSP bottleneck layer with two convolutions with arguments ch_in, ch_out, number, shortcut, groups,
-        expansion.
-        """
+        """Initialize CSP bottleneck layer with two convolutions with arguments ch_in, ch_out, number, shortcut, groups,expansion."""
         super().__init__()
-        self.c = int(c2 * e)  # hidden channels
+        self.c = int(c2 * e)  
         self.cv1 = Conv(c1, 2 * self.c, 1, 1)
         self.cv2 = Conv((2 + n) * self.c, c2, 1)  # optional act=FReLU(c2)
-        self.m = nn.ModuleList(
-            Bottleneck_ODConv(self.c, self.c, shortcut, g, k=((3, 3), (3, 3)), e=1.0) for _ in range(n))
-
+        self.m = nn.ModuleList(Bottleneck_ODConv(self.c, self.c, shortcut, g, k=((3, 3), (3, 3)), e=1.0) for _ in range(n))#这里替换为新的Bottleneck->Bottleneck_ODConv
     def forward(self, x):
         """Forward pass through C2f layer."""
         y = list(self.cv1(x).chunk(2, 1))
